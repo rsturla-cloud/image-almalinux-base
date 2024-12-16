@@ -30,7 +30,7 @@
         // Disable Renovate version pinning for Dockerfiles
         {
             "matchManagers": [
-                "docker"
+                "dockerfile"
             ],
             "matchUpdateTypes": [
                 "digest",
