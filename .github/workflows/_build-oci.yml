@@ -181,7 +181,7 @@ jobs:
           DIGESTS_JSON=$(jq -n '{}')
 
           # Loop through digest files and construct the JSON
-          for digest_file in /tmp/artifacts/almalinux-9-*.txt; do
+          for digest_file in /tmp/artifacts/*.txt; do
             # Extract the platform from the file name
             PLATFORM=$(basename $digest_file | rev | cut -d'-' -f1 | rev | cut -d'.' -f1)
             DIGEST=$(cat $digest_file)
