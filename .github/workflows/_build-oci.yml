@@ -178,6 +178,7 @@ jobs:
           done
 
           echo "DIGESTS_JSON: $DIGESTS_JSON"
+          DIGESTS_JSON=$(echo "$DIGESTS_JSON" | jq -c '.')
           echo "DIGESTS_JSON=$DIGESTS_JSON" >> $GITHUB_OUTPUT
 
       - name: Show Outputs
