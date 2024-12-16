@@ -49,4 +49,4 @@ jobs:
             matrix: ${{fromJson(needs.generate_matrix.outputs.matrix)}}
         with:
             os_version: ${{ matrix.os_version }}
-            platforms: ${{ matrix.platforms }}
+            platforms: ${{ toJson(matrix.platforms) }}
