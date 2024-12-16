@@ -245,6 +245,7 @@ jobs:
 
           MANIFEST_TAGS_JSON=$MANIFEST_TAGS | jq -c '.'
           echo "MANIFEST_TAGS_JSON=$MANIFEST_TAGS_JSON" >> $GITHUB_OUTPUT
+          echo "MANIFEST_TAGS_JSON=$MANIFEST_TAGS_JSON"
 
       - name: Push Manifest
         env:
