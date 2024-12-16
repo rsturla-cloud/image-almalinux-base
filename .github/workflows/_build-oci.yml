@@ -251,7 +251,7 @@ jobs:
             MANIFEST_TAGS+=($IMAGE_REGISTRY:$TAG)
           done
 
-          MANIFEST_TAGS_JSON=$(printf '%s\n' "${MANIFEST_TAGS[@]}" | jq -R . | jq -s .)
+          MANIFEST_TAGS_JSON=$(printf '%s\n' "${MANIFEST_TAGS[@]}" | jq -R . | jq -cs .)
           echo "MANIFEST_TAGS_JSON=$MANIFEST_TAGS_JSON" >> $GITHUB_OUTPUT
           echo "MANIFEST_TAGS_JSON=$MANIFEST_TAGS_JSON"
 
