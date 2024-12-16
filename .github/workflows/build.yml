@@ -43,6 +43,7 @@ jobs:
 
     build_oci:
         uses: ./.github/workflows/_build-oci.yml
+        needs: generate_matrix
         strategy:
             fail-fast: false
             matrix: ${{fromJson(needs.generate_matrix.outputs.matrix)}}
