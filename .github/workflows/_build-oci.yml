@@ -170,10 +170,11 @@ jobs:
           ls /tmp/artifacts
 
           PLATFORMS=$(echo "$PLATFORMS_JSON" | jq -c '.')
+          echo "PLATFORMS: $PLATFORMS"
 
           declare -A DIGESTS
-          for digest_file in /tmp/artifacts/${{ steps.metadata.outputs.NAME }}-${{ steps.metadata.outputs.OS_VERSION }}-*.txt; do
-            cat $digest_file
+          for digest_file in /tmp/artifacts/almalinux-9-*.txt; do
+            echo "Processing digest file: $digest_file"
             PLATFORM=""
             for platform in $(echo "$PLATFORMS" | jq -r '.[]'); do
               if [[ $digest_file == *$platform* ]]; then
@@ -181,6 +182,12 @@ jobs:
                 break
               fi
             done
+
+            if [[ -z $PLATFORM ]]; then
+              echo "No matching platform found for digest file: $digest_file"
+              continue
+            fi
+
             DIGEST=$(cat $digest_file)
             DIGESTS[$PLATFORM]=$DIGEST
             echo "Platform: $PLATFORM, Digest: $DIGEST"
