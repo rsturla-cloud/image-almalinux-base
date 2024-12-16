@@ -197,13 +197,10 @@ jobs:
           MANIFEST: ${{ steps.create-manifest.outputs.MANIFEST }}
           PLATFORMS_JSON: ${{ inputs.platforms }}
           DIGESTS_JSON: ${{ steps.load-outputs.outputs.DIGESTS_JSON }}
+          IMAGE_REGISTRY: ${{ steps.metadata.outputs.IMAGE_REGISTRY }}
         run: |
           DIGESTS=$(echo "$DIGESTS_JSON" | jq -c '.')
           PLATFORMS=$(echo "$PLATFORMS_JSON" | jq -c '.')
-
-          # Remove any whitespace from IMAGE_REGISTRY
-          IMAGE_REGISTRY=$(echo $IMAGE_REGISTRY | tr -d '[:space:]')
-
           for platform in $(echo "$PLATFORMS" | jq -r '.[]'); do
             echo "Adding platform: $platform"
             # Get the digest for the platform
