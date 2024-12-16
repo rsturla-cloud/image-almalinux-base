@@ -10,6 +10,10 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}-${{ github.event.inputs.os_version }}-${{ github.event.inputs.platforms }}
+  cancel-in-progress: true
+
 env:
   GHCR_REGISTRY: ghcr.io/${{ github.repository_owner }}
 
@@ -50,7 +54,7 @@ jobs:
 
   build_image:
     needs: generate_matrix
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix: ${{fromJson(needs.generate_matrix.outputs.matrix)}}
     outputs:
