@@ -23,6 +23,7 @@ jobs:
                   PLATFORMS_JSON: ${{ github.event.inputs.platforms }}
               run: |
                   PLATFORMS=$(echo "$PLATFORMS_JSON" | jq -c '.')
+                  echo "Platforms: $PLATFORMS"
 
                   # Initialize an empty matrix
                   MATRIX="{\"include\":[]}"
