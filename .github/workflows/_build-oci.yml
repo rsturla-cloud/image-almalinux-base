@@ -143,7 +143,7 @@ jobs:
         run: |
           NAME=$(yq eval '.name' $IMAGE_SPEC_PATH)
           TYPE=$(yq eval '.type' $IMAGE_SPEC_PATH)
-          TAGS=$(yq eval -o=json '.tags' $IMAGE_SPEC_PATH) | jq -c '.'
+          TAGS=$(yq eval -o=json '.tags' $IMAGE_SPEC_PATH | jq -c '.')
 
           if [ "$TYPE" == "base" ]; then
             IMAGE_REGISTRY=$GHCR_REGISTRY/base/$NAME
@@ -223,16 +223,18 @@ jobs:
           IMAGE_REGISTRY: ${{ steps.metadata.outputs.IMAGE_REGISTRY }}
           TAGS: ${{ steps.metadata.outputs.TAGS }}
           OS_VERSION: ${{ steps.metadata.outputs.OS_VERSION }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
           OS_VERSION=$OS_VERSION
-          COMMIT_SHA=$(echo "${{ github.sha }}")
-          COMMIT_SHA_SHORT=$(echo "${{ github.sha }}" | cut -c1-5)
+          COMMIT_SHA=$COMMIT_SHA
+          COMMIT_SHA_SHORT=$(echo "$COMMIT_SHA" | cut -c1-7)
           BUILD_TIMESTAMP=$(date -u +"%Y%m%dT%H%M%SZ")
 
           # Substitute the values in the tags using envsubst
           MANIFEST_TAGS=()
           for tag in $(echo "$TAGS" | jq -r '.[]'); do
             TAG=$(echo "$tag" | envsubst)
+            echo "Replacing tag: $tag with $TAG"
             MANIFEST_TAGS+=($IMAGE_REGISTRY:$TAG)
           done
 
