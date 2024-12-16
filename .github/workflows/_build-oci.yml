@@ -175,7 +175,8 @@ jobs:
           declare -A DIGESTS
           for digest_file in /tmp/artifacts/almalinux-9-*.txt; do
             # Get the final part of the file name (amd64, arm64, etc.)
-            PLATFORM=$(basename $digest_file | cut -d'-' -f3 | cut -d'.' -f1)
+            # There could be any number of hyphens in the file name, so we need to go from the end
+            PLATFORM=$(basename $digest_file | rev | cut -d'-' -f1 | rev | cut -d'.' -f1)
             DIGEST=$(cat $digest_file)
             DIGESTS[$PLATFORM]=$DIGEST
             echo "Platform: $PLATFORM, Digest: $DIGEST"
