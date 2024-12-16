@@ -164,31 +164,21 @@ jobs:
       - name: Load Outputs
         id: load-outputs
         run: |
-          # Digests
-          # Store the digests in a dictionary of platforms to digests
-          echo "Found the following digests files:"
-          ls /tmp/artifacts
+          # Initialize an empty JSON object using jq
+          DIGESTS_JSON=$(jq -n '{}')
 
-          PLATFORMS=$(echo "$PLATFORMS_JSON" | jq -c '.')
-          echo "PLATFORMS: $PLATFORMS"
-
-          declare -A DIGESTS
+          # Loop through digest files and construct the JSON
           for digest_file in /tmp/artifacts/almalinux-9-*.txt; do
-            # Get the final part of the file name (amd64, arm64, etc.)
-            # There could be any number of hyphens in the file name, so we need to go from the end
+            # Extract the platform from the file name
             PLATFORM=$(basename $digest_file | rev | cut -d'-' -f1 | rev | cut -d'.' -f1)
             DIGEST=$(cat $digest_file)
-            DIGESTS[$PLATFORM]=$DIGEST
-            echo "Platform: $PLATFORM, Digest: $DIGEST"
+
+            # Add the platform and digest to the JSON object
+            DIGESTS_JSON=$(echo "$DIGESTS_JSON" | jq --arg key "$PLATFORM" --arg value "$DIGEST" '. + {($key): $value}')
           done
 
-          echo "Found digests:"
-          for platform in "${!DIGESTS[@]}"; do
-            echo "Platform: $platform, Digest: ${DIGESTS[$platform]}"
-          done
-
-          DIGESTS_JSON = $(echo "${DIGESTS[@]}" | jq -c '.')
           echo "DIGESTS_JSON: $DIGESTS_JSON"
+          echo "DIGESTS_JSON=$DIGESTS_JSON" >> $GITHUB_OUTPUT
 
       - name: Show Outputs
         run: cat $GITHUB_OUTPUT
