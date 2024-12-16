@@ -195,6 +195,7 @@ jobs:
             # Get the digest for the platform
             DIGEST=${DIGESTS[$platform]}
 
+            echo "Running podman manifest add $MANIFEST $IMAGE_REGISTRY@$DIGEST"
             podman manifest add $MANIFEST $IMAGE_REGISTRY@$DIGEST
           done
 
