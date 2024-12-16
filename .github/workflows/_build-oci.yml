@@ -158,7 +158,7 @@ jobs:
       - name: Fetch Build Outputs
         uses: actions/download-artifact@v4
         with:
-          pattern: ${{ steps.build_image.outputs.IMAGE_NAME }}-${{ inputs.OS_VERSION }}-*
+          pattern: ${{ steps.metadata.outputs.NAME }}-${{ steps.metadata.outputs.OS_VERSION }}-*
           merge-multiple: true
 
       - name: Load Outputs
@@ -183,7 +183,6 @@ jobs:
         run: |
           podman manifest create ${IMAGE_REGISTRY}
           echo "MANIFEST=$IMAGE_REGISTRY" >> $GITHUB_OUTPUT
-
 
       - name: Populate Manifest
         env:
