@@ -1,15 +1,15 @@
 name: almalinux
 type: base
 platforms:
-    - x86_64
-    - arm64
+  - x86_64
+  - arm64
 tags:
-    - ${OS_VERSION}
-    - ${OS_VERSION}-${COMMIT_SHA}
-    - ${OS_VERSION}-${COMMIT_SHA_SHORT}
-    - ${OS_VERSION}-${BUILD_DATE}
-    - ${OS_VERSION}-${BUILD_DATE}-${COMMIT_SHA}
-    - ${OS_VERSION}-${BUILD_DATE}-${COMMIT_SHA_SHORT}
+  - ${OS_VERSION}
+  - ${OS_VERSION}-${COMMIT_SHA}
+  - ${OS_VERSION}-${COMMIT_SHA_SHORT}
+  - ${OS_VERSION}-${BUILD_DATE}
+  - ${OS_VERSION}-${BUILD_DATE}-${COMMIT_SHA}
+  - ${OS_VERSION}-${BUILD_DATE}-${COMMIT_SHA_SHORT}
 os_versions:
-    - 9
-    - 10
+  - 9
+  - 10

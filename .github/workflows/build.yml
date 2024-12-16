@@ -1,52 +1,63 @@
 name: Build
 
 on:
-    pull_request:
-        branches:
-            - main
-    push:
-        branches:
-            - main
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
 
 jobs:
-    generate_matrix:
-        runs-on: ubuntu-latest
-        outputs:
-            matrix: ${{ steps.set-matrix.outputs.matrix }}
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
+  generate_matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-            - name: Set matrix
-              id: set-matrix
-              env:
-                  IMAGE_SPEC_PATH: ./image.yml
-              run: |
-                  # Extract OS versions and platforms from the image spec
-                  OS_VERSIONS=$(yq eval -o=json '.os_versions' $IMAGE_SPEC_PATH)
-                  PLATFORMS=$(yq eval -o=json '.platforms' $IMAGE_SPEC_PATH)
+      - name: Set matrix
+        id: set-matrix
+        env:
+          IMAGE_SPEC_PATH: ./image.yml
+        run: |
+          # Extract OS versions and platforms from the image spec
+          OS_VERSIONS=$(yq eval -o=json '.os_versions' $IMAGE_SPEC_PATH)
+          PLATFORMS=$(yq eval -o=json '.platforms' $IMAGE_SPEC_PATH)
 
-                  # Initialize an empty matrix
-                  MATRIX="{\"include\":[]}"
+          # Initialize an empty matrix
+          MATRIX="{\"include\":[]}"
 
-                  # Loop through OS versions to build the matrix
-                  for os_version in $(echo "$OS_VERSIONS" | jq -r '.[]'); do
-                      MATRIX=$(echo "$MATRIX" | jq --argjson platforms "$PLATFORMS" --arg os_version "$os_version" \
-                          '.include += [{"os_version": $os_version | tonumber, "platforms": $platforms}]')
-                  done
+          # Loop through OS versions to build the matrix
+          for os_version in $(echo "$OS_VERSIONS" | jq -r '.[]'); do
+            MATRIX=$(echo "$MATRIX" | jq --argjson platforms "$PLATFORMS" --arg os_version "$os_version" \
+              '.include += [{"os_version": $os_version | tonumber, "platforms": $platforms}]')
+          done
 
-                  # Minify the JSON
-                  MATRIX=$(echo "$MATRIX" | jq -c '.')
+          # Minify the JSON
+          MATRIX=$(echo "$MATRIX" | jq -c '.')
 
-                  echo "Created matrix: $MATRIX"
-                  echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "Created matrix: $MATRIX"
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
 
-    build_oci:
-        uses: ./.github/workflows/_build-oci.yml
-        needs: generate_matrix
-        strategy:
-            fail-fast: false
-            matrix: ${{fromJson(needs.generate_matrix.outputs.matrix)}}
-        with:
-            os_version: ${{ matrix.os_version }}
-            platforms: ${{ toJson(matrix.platforms) }}
+  build_oci:
+    uses: ./.github/workflows/_build-oci.yml
+    needs: generate_matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{fromJson(needs.generate_matrix.outputs.matrix)}}
+    with:
+      os_version: ${{ matrix.os_version }}
+      platforms: ${{ toJson(matrix.platforms) }}
+
+  build_ami:
+    runs-on: ubuntu-latest
+    needs:
+      - generate_matrix
+      - build_oci
+    strategy:
+      matrix: ${{fromJson(needs.generate_matrix.outputs.matrix)}}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4

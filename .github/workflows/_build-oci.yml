@@ -1,61 +1,92 @@
 name: Build OCI
 
 on:
-    workflow_call:
-        inputs:
-            os_version:
-                required: true
-                type: string
-            platforms:
-                required: true
-                type: string
+  workflow_call:
+    inputs:
+      os_version:
+        required: true
+        type: string
+      platforms:
+        required: true
+        type: string
+
+env:
+  GHCR_REGISTRY: ghcr.io/${{ github.repository_owner }}
 
 jobs:
-    generate_matrix:
-        runs-on: ubuntu-latest
-        outputs:
-            matrix: ${{ steps.set-matrix.outputs.matrix }}
-        steps:
-            - name: Set matrix
-              id: set-matrix
-              env:
-                  OS_VERSION: ${{ inputs.os_version }}
-                  PLATFORMS_JSON: ${{ inputs.platforms }}
-              run: |
-                  PLATFORMS=$(echo "$PLATFORMS_JSON" | jq -c '.')
-                  echo "Platforms: $PLATFORMS"
+  generate_matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Set matrix
+        id: set-matrix
+        env:
+          OS_VERSION: ${{ inputs.os_version }}
+          PLATFORMS_JSON: ${{ inputs.platforms }}
+        run: |
+          PLATFORMS=$(echo "$PLATFORMS_JSON" | jq -c '.')
+          echo "Platforms: $PLATFORMS"
 
-                  # Initialize an empty matrix
-                  MATRIX="{\"include\":[]}"
+          # Initialize an empty matrix
+          MATRIX="{\"include\":[]}"
 
-                  # Loop through the platforms to build the matrix
-                  for platform in $(echo "$PLATFORMS" | jq -r '.[]'); do
-                      echo "Working on platform: $platform"
-                      MATRIX=$(echo "$MATRIX" | jq --arg platform "$platform" --arg os_version "$OS_VERSION" \
-                          '.include += [{"os_version": $os_version, "platform": $platform}]')
-                  done
+          # Loop through the platforms to build the matrix
+          for platform in $(echo "$PLATFORMS" | jq -r '.[]'); do
+            echo "Working on platform: $platform"
+            MATRIX=$(echo "$MATRIX" | jq --arg platform "$platform" --arg os_version "$OS_VERSION" \
+              '.include += [{"os_version": $os_version, "platform": $platform}]')
+          done
 
-                  # Minify the JSON
-                  MATRIX=$(echo "$MATRIX" | jq -c '.')
-                  echo "Created matrix: $MATRIX"
-                  echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          # Minify the JSON
+          MATRIX=$(echo "$MATRIX" | jq -c '.')
+          echo "Created matrix: $MATRIX"
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
 
-    build_image:
-        needs: generate_matrix
-        runs-on: ubuntu-latest
-        strategy:
-            matrix: ${{fromJson(needs.generate_matrix.outputs.matrix)}}
-        steps:
-            - name: Debug
-              run: |
-                  echo "Platform: ${{ matrix.platform }}"
-                  echo "OS Version: ${{ matrix.os_version }}"
+  build_image:
+    needs: generate_matrix
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{fromJson(needs.generate_matrix.outputs.matrix)}}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    manifest:
-        needs: build_image
-        runs-on: ubuntu-latest
-        steps:
-            - name: Debug
-              run: |
-                  echo "Platform: ${{ matrix.platform }}"
-                  echo "OS Version: ${{ matrix.os_version }}"
+      - name: Build Image
+        id: build-image
+        run: |
+          podman build -t $GHCR_REGISTRY/almalinux-base:local \
+            --iidfile /tmp/iidfile \
+            --build-arg OS_VERSION=${{ matrix.os_version }} \
+            --build-arg PLATFORM=${{ matrix.platform }} \
+            .
+
+          IMAGE_ID=$(cat /tmp/iidfile)
+          echo "IMAGE_ID=$IMAGE_ID" >> $GITHUB_OUTPUT
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Push Image
+        id: push-image
+        env:
+          IMAGE_ID: ${{ steps.build-image.outputs.IMAGE_ID }}
+        run: |
+          # Push the image with only the digest
+          podman push --digestfile=/tmp/digestfile $GHCR_REGISTRY/almalinux-base@${IMAGE_ID}
+          IMAGE_DIGEST=$(cat /tmp/digestfile)
+          echo "IMAGE_DIGEST=$IMAGE_DIGEST" >> $GITHUB_OUTPUT
+
+
+  manifest:
+    needs: build_image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug
+        run: |
+          echo "Platform: ${{ matrix.platform }}"
+          echo "OS Version: ${{ matrix.os_version }}"
