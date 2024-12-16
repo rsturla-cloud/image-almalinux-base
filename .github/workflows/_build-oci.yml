@@ -20,17 +20,18 @@ jobs:
               id: set-matrix
               env:
                   OS_VERSION: ${{ github.event.inputs.os_version }}
-                  PLATFORMS: ${{ github.event.inputs.platforms }}
+                  PLATFORMS_JSON: ${{ github.event.inputs.platforms }}
               run: |
-                  PLATFORMS=$(echo "$PLATFORMS" | jq -c '.')
+                  PLATFORMS=$(echo "$PLATFORMS_JSON" | jq -c '.')
 
                   # Initialize an empty matrix
                   MATRIX="{\"include\":[]}"
 
                   # Loop through the platforms to build the matrix
                   for platform in $(echo "$PLATFORMS" | jq -r '.[]'); do
-                      MATRIX=$(echo "$MATRIX" | jq --argjson platform "$platform" --arg os_version "$OS_VERSION" \
-                          '.include += [{"os_version": $os_version | tonumber, "platform": $platform}]')
+                      echo "Working on platform: $platform"
+                      MATRIX=$(echo "$MATRIX" | jq --arg platform "$platform" --arg os_version "$OS_VERSION" \
+                          '.include += [{"platform": $platform, "os_version": $os_version}]')
                   done
 
                   # Minify the JSON
