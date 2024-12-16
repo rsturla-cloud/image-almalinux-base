@@ -108,7 +108,9 @@ jobs:
           IMAGE_REGISTRY: ${{ steps.build-image.outputs.IMAGE_REGISTRY }}
         run: |
           # Push the image with only the digest
-          podman push --digestfile=/tmp/digestfile $IMAGE_REGISTRY@${IMAGE_DIGEST}
+          for i in {1..3}; do
+            podman push --digestfile=/tmp/digestfile $IMAGE_REGISTRY@${IMAGE_DIGEST} && break || sleep $((2 ** i))
+          done
           REMOTE_IMAGE_DIGEST=$(cat /tmp/digestfile)
           echo "REMOTE_IMAGE_DIGEST=$REMOTE_IMAGE_DIGEST" >> $GITHUB_OUTPUT
 
