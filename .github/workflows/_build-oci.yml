@@ -233,8 +233,13 @@ jobs:
           # Substitute the values in the tags using envsubst
           MANIFEST_TAGS=()
           for tag in $(echo "$TAGS" | jq -r '.[]'); do
-            TAG=$(echo "$tag" | envsubst)
-            echo "Replacing tag: $tag with $TAG"
+              TAG=$(OS_VERSION="$OS_VERSION" \
+                COMMIT_SHA="$COMMIT_SHA" \
+                COMMIT_SHA_SHORT="$COMMIT_SHA_SHORT" \
+                BUILD_TIMESTAMP="$BUILD_TIMESTAMP" \
+                envsubst <<< "$tag")
+
+            echo "Replaced tag: $tag with $TAG"
             MANIFEST_TAGS+=($IMAGE_REGISTRY:$TAG)
           done
 
