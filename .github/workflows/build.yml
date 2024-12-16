@@ -22,27 +22,46 @@ jobs:
               env:
                   IMAGE_SPEC_PATH: ./image.yml
               run: |
-                  OS_VERSIONS=$(yq eval '.os_versions' $IMAGE_SPEC_PATH)
-                  PLATFORMS=$(yq eval '.platforms' $IMAGE_SPEC_PATH)
+                  # Extract OS versions and platforms from the image spec
+                  OS_VERSIONS=$(yq eval -o=json '.os_versions' $IMAGE_SPEC_PATH)
+                  PLATFORMS=$(yq eval -o=json '.platforms' $IMAGE_SPEC_PATH)
 
                   # Create matrix of the form:
                   # {
                   #   "include": [
                   #     {
                   #       "os_version": 9,
-                  #       "platform": "x86_64"
+                  #       "platforms": ["x86_64", "arm64"]
                   #     },
                   #     {
-                  #       "os_version": 9,
-                  #       "platform": "arm64"
+                  #       "os_version": 10,
+                  #       "platform": ["x86_64", "arm64"]
                   #     }
                   #   ]
                   # }
-                  MATRIX=$(jq -n --arg OS_VERSIONS "$OS_VERSIONS" --arg PLATFORMS "$PLATFORMS" '{
-                      include: [
-                          [ $OS_VERSIONS, $PLATFORMS ] | transpose[] | { os_version: .[0], platform: .[1] }
-                      ]
-                  }')
+
+                  # Initialize an empty matrix
+                  MATRIX="{\"include\":[]}"
+
+                  # Loop through OS versions to build the matrix
+                  for os_version in $(echo "$OS_VERSIONS" | jq -r '.[]'); do
+                      MATRIX=$(echo "$MATRIX" | jq --argjson platforms "$PLATFORMS" --arg os_version "$os_version" \
+                          '.include += [{"os_version": $os_version | tonumber, "platforms": $platforms}]')
+                  done
 
                   echo "Created matrix: $MATRIX"
                   echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+
+    build_image:
+        needs: generate_matrix
+        runs-on: ubuntu-latest
+        strategy:
+            matrix: ${{fromJson(needs.generate_matrix.outputs.matrix)}}
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Build image
+              run: |
+                  echo "Building image for os_version: ${{ matrix.os_version }} and platforms: ${{ matrix.platforms }}"
+                  # Build image here
