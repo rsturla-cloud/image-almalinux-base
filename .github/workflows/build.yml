@@ -22,10 +22,8 @@ jobs:
               env:
                   IMAGE_SPEC_PATH: ./image.yml
               run: |
-                  IMAGE_SPEC=$(cat $IMAGE_SPEC_PATH)
-
-                  OS_VERSIONS=$(echo $IMAGE_SPEC | yq eval '.os_versions' -)
-                  PLATFORMS=$(echo $IMAGE_SPEC | yq eval '.platforms' -)
+                  OS_VERSIONS=$(yq eval '.os_versions' $IMAGE_SPEC_PATH)
+                  PLATFORMS=$(yq eval '.platforms' $IMAGE_SPEC_PATH)
 
                   # Create matrix of the form:
                   # {
