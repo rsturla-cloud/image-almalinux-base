@@ -174,20 +174,8 @@ jobs:
 
           declare -A DIGESTS
           for digest_file in /tmp/artifacts/almalinux-9-*.txt; do
-            echo "Processing digest file: $digest_file"
-            PLATFORM=""
-            for platform in $(echo "$PLATFORMS" | jq -r '.[]'); do
-              if [[ $digest_file == *$platform* ]]; then
-                PLATFORM=$platform
-                break
-              fi
-            done
-
-            if [[ -z $PLATFORM ]]; then
-              echo "No matching platform found for digest file: $digest_file"
-              continue
-            fi
-
+            # Get the final part of the file name (amd64, arm64, etc.)
+            PLATFORM=$(basename $digest_file | cut -d'-' -f3 | cut -d'.' -f1)
             DIGEST=$(cat $digest_file)
             DIGESTS[$PLATFORM]=$DIGEST
             echo "Platform: $PLATFORM, Digest: $DIGEST"
