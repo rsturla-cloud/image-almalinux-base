@@ -151,6 +151,12 @@ jobs:
             IMAGE_REGISTRY=$GHCR_REGISTRY/$NAME
           fi
 
+          # If this is a PR, prepend all tags with pr<PR_NUMBER>- to avoid conflicts
+          if [ -n "$GITHUB_HEAD_REF" ]; then
+            PR_NUMBER=$(echo "$GITHUB_REF" | awk -F'/' '{print $3}')
+            TAGS=$(echo "$TAGS" | jq -r '.[] | "pr'$PR_NUMBER'-\(.)"')
+          fi
+
           echo "NAME=$NAME" >> $GITHUB_OUTPUT
           echo "IMAGE_REGISTRY=$IMAGE_REGISTRY" >> $GITHUB_OUTPUT
           echo "OS_VERSION=$OS_VERSION" >> $GITHUB_OUTPUT
@@ -219,7 +225,6 @@ jobs:
       - name: Tag Manifest
         id: tag-manifest
         env:
-          IMAGE_SPEC_PATH: ./image.yml
           IMAGE_REGISTRY: ${{ steps.metadata.outputs.IMAGE_REGISTRY }}
           TAGS: ${{ steps.metadata.outputs.TAGS }}
           OS_VERSION: ${{ steps.metadata.outputs.OS_VERSION }}
@@ -243,7 +248,7 @@ jobs:
             MANIFEST_TAGS+=($IMAGE_REGISTRY:$TAG)
           done
 
-          MANIFEST_TAGS_JSON=$MANIFEST_TAGS | jq -c '.'
+          MANIFEST_TAGS_JSON=$(printf '%s\n' "${MANIFEST_TAGS[@]}" | jq -R . | jq -s .)
           echo "MANIFEST_TAGS_JSON=$MANIFEST_TAGS_JSON" >> $GITHUB_OUTPUT
           echo "MANIFEST_TAGS_JSON=$MANIFEST_TAGS_JSON"
 
