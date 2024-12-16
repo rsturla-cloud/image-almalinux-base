@@ -1,0 +1,50 @@
+name: Build
+
+on:
+    pull_request:
+        branches:
+            - main
+    push:
+        branches:
+            - main
+
+jobs:
+    generate_matrix:
+        runs-on: ubuntu-latest
+        outputs:
+            matrix: ${{ steps.set-matrix.outputs.matrix }}
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Set matrix
+              id: set-matrix
+              env:
+                  IMAGE_SPEC_PATH: ./image.yml
+              run: |
+                  IMAGE_SPEC=$(cat $IMAGE_SPEC_PATH)
+
+                  OS_VERSIONS=$(echo $IMAGE_SPEC | yq eval '.os_versions' -)
+                  PLATFORMS=$(echo $IMAGE_SPEC | yq eval '.platforms' -)
+
+                  # Create matrix of the form:
+                  # {
+                  #   "include": [
+                  #     {
+                  #       "os_version": 9,
+                  #       "platform": "x86_64"
+                  #     },
+                  #     {
+                  #       "os_version": 9,
+                  #       "platform": "arm64"
+                  #     }
+                  #   ]
+                  # }
+                  MATRIX=$(jq -n --arg OS_VERSIONS "$OS_VERSIONS" --arg PLATFORMS "$PLATFORMS" '{
+                      include: [
+                          [ $OS_VERSIONS, $PLATFORMS ] | transpose[] | { os_version: .[0], platform: .[1] }
+                      ]
+                  }')
+
+                  echo "Created matrix: $MATRIX"
+                  echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
