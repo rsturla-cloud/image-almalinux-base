@@ -52,46 +52,130 @@ jobs:
       contents: read
       packages: write
       id-token: write
+    outputs:
+      OS_VERSION: ${{ matrix.os_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Metadata
+        id: metadata
+        env:
+          IMAGE_SPEC_PATH: ./image.yml
+        run: |
+          NAME=$(yq eval '.name' $IMAGE_SPEC_PATH)
+          TYPE=$(yq eval '.type' $IMAGE_SPEC_PATH)
+
+          if [ "$TYPE" == "base" ]; then
+            IMAGE_REGISTRY=$GHCR_REGISTRY/base/$NAME
+          else
+            IMAGE_REGISTRY=$GHCR_REGISTRY/$NAME
+          fi
+
+          echo "IMAGE_REGISTRY=$IMAGE_REGISTRY" >> $GITHUB_OUTPUT
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+
       - name: Build Image
         id: build-image
+        env:
+          IMAGE_REGISTRY: ${{ steps.metadata.outputs.IMAGE_REGISTRY }}
+          NAME: ${{ steps.metadata.outputs.NAME }}
         run: |
-          podman build -t $GHCR_REGISTRY/almalinux-base:local \
+          podman build -t $IMAGE_REGISTRY:local \
             --iidfile /tmp/iidfile \
             --build-arg OS_VERSION=${{ matrix.os_version }} \
             --build-arg PLATFORM=${{ matrix.platform }} \
             .
 
           IMAGE_ID=$(cat /tmp/iidfile)
-          echo "IMAGE_ID=$IMAGE_ID" >> $GITHUB_OUTPUT
-
           IMAGE_DIGEST=$(podman inspect --format '{{.Digest}}' $IMAGE_ID)
-          echo "IMAGE_DIGEST=$IMAGE_DIGEST" >> $GITHUB_OUTPUT
-          podman image ls
-          podman image inspect $GHCR_REGISTRY/almalinux-base:local
 
-      - name: Login to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+          echo "IMAGE_REGISTRY=$IMAGE_REGISTRY" >> $GITHUB_OUTPUT
+          echo "IMAGE_NAME=$NAME" >> $GITHUB_OUTPUT
+          echo "IMAGE_DIGEST=$IMAGE_DIGEST" >> $GITHUB_OUTPUT
 
       - name: Push Image
         id: push-image
         env:
           IMAGE_DIGEST: ${{ steps.build-image.outputs.IMAGE_DIGEST }}
+          IMAGE_REGISTRY: ${{ steps.build-image.outputs.IMAGE_REGISTRY }}
         run: |
           # Push the image with only the digest
-          podman push --digestfile=/tmp/digestfile $GHCR_REGISTRY/almalinux-base@${IMAGE_DIGEST}
+          podman push --digestfile=/tmp/digestfile $IMAGE_REGISTRY@${IMAGE_DIGEST}
           REMOTE_IMAGE_DIGEST=$(cat /tmp/digestfile)
           echo "REMOTE_IMAGE_DIGEST=$REMOTE_IMAGE_DIGEST" >> $GITHUB_OUTPUT
+
+      - name: Generate Outputs
+        env:
+          NAME: ${{ steps.metadata.outputs.NAME }}
+          OS_VERSION: ${{ matrix.os_version }}
+          PLATFORM: ${{ matrix.platform }}
+          DIGEST: ${{ steps.push-image.outputs.REMOTE_IMAGE_DIGEST }}
+        run: |
+          echo "DIGEST=$DIGEST" > /tmp/outputs/$NAME-$OS_VERSION-$PLATFORM.txt
+
+      - name: Upload Output Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build-image.outputs.IMAGE_NAME }}-$OS_VERSION-${{ matrix.platform }}
+          retention-days: 1
+          if-no-files-found: error
+          path: |
+            /tmp/outputs/*.txt
 
 
   manifest:
     needs: build_image
     runs-on: ubuntu-latest
     steps:
-      - name: Debug
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Metadata
+        id: metadata
+        env:
+          IMAGE_SPEC_PATH: ./image.yml
+          OS_VERSION: ${{ needs.build_image.outputs.OS_VERSION }}
         run: |
-          echo "Platform: ${{ matrix.platform }}"
-          echo "OS Version: ${{ matrix.os_version }}"
+          NAME=$(yq eval '.name' $IMAGE_SPEC_PATH)
+          TYPE=$(yq eval '.type' $IMAGE_SPEC_PATH)
+
+          if [ "$TYPE" == "base" ]; then
+            IMAGE_REGISTRY=$GHCR_REGISTRY/base/$NAME
+          else
+            IMAGE_REGISTRY=$GHCR_REGISTRY/$NAME
+          fi
+
+          echo "IMAGE_REGISTRY=$IMAGE_REGISTRY" >> $GITHUB_OUTPUT
+          echo "OS_VERSION=$OS_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Fetch Build Outputs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ steps.build_image.outputs.IMAGE_NAME }}-${{ steps.metadata.outputs.OS_VERSION }}-*
+          merge-multiple: true
+
+      - name: Load Outputs
+        id: load-outputs
+        run: |
+          for file in /tmp/outputs/*.txt; do
+            echo "Loading $file"
+            while IFS='=' read -r key value; do
+              echo "$key=$value" >> $GITHUB_OUTPUT
+            done < $file
+          done
+
+      - name: Show Outputs
+        run: cat $GITHUB_OUTPUT
+
+      - name: Create Manifest
+        run: podman manifest create almalinux-base
+
+      - name: Populate Manifest
+        run: |
+          for platform in $(echo "${{ steps.build_image.outputs.matrix }}" | jq -r '.include[].platform'); do
+            echo "Adding platform: $platform"
+            podman manifest add almalinux-base $GHCR_REGISTRY/almalinux-base@$platform
+          done
