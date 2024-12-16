@@ -26,20 +26,6 @@ jobs:
                   OS_VERSIONS=$(yq eval -o=json '.os_versions' $IMAGE_SPEC_PATH)
                   PLATFORMS=$(yq eval -o=json '.platforms' $IMAGE_SPEC_PATH)
 
-                  # Create matrix of the form:
-                  # {
-                  #   "include": [
-                  #     {
-                  #       "os_version": 9,
-                  #       "platforms": ["x86_64", "arm64"]
-                  #     },
-                  #     {
-                  #       "os_version": 10,
-                  #       "platform": ["x86_64", "arm64"]
-                  #     }
-                  #   ]
-                  # }
-
                   # Initialize an empty matrix
                   MATRIX="{\"include\":[]}"
 
@@ -48,6 +34,9 @@ jobs:
                       MATRIX=$(echo "$MATRIX" | jq --argjson platforms "$PLATFORMS" --arg os_version "$os_version" \
                           '.include += [{"os_version": $os_version | tonumber, "platforms": $platforms}]')
                   done
+
+                  # Minify the JSON
+                  MATRIX=$(echo "$MATRIX" | jq -c '.')
 
                   echo "Created matrix: $MATRIX"
                   echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
