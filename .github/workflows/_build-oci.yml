@@ -67,6 +67,9 @@ jobs:
 
           IMAGE_ID=$(cat /tmp/iidfile)
           echo "IMAGE_ID=$IMAGE_ID" >> $GITHUB_OUTPUT
+
+          IMAGE_DIGEST=$(podman inspect --format '{{.Digest}}' $IMAGE_ID)
+          echo "IMAGE_DIGEST=$IMAGE_DIGEST" >> $GITHUB_OUTPUT
           podman image ls
           podman image inspect $GHCR_REGISTRY/almalinux-base:local
 
@@ -76,12 +79,12 @@ jobs:
       - name: Push Image
         id: push-image
         env:
-          IMAGE_ID: ${{ steps.build-image.outputs.IMAGE_ID }}
+          IMAGE_DIGEST: ${{ steps.build-image.outputs.IMAGE_DIGEST }}
         run: |
           # Push the image with only the digest
-          podman push --digestfile=/tmp/digestfile $GHCR_REGISTRY/almalinux-base@${IMAGE_ID}
-          IMAGE_DIGEST=$(cat /tmp/digestfile)
-          echo "IMAGE_DIGEST=$IMAGE_DIGEST" >> $GITHUB_OUTPUT
+          podman push --digestfile=/tmp/digestfile $GHCR_REGISTRY/almalinux-base@${IMAGE_DIGEST}
+          REMOTE_IMAGE_DIGEST=$(cat /tmp/digestfile)
+          echo "REMOTE_IMAGE_DIGEST=$REMOTE_IMAGE_DIGEST" >> $GITHUB_OUTPUT
 
 
   manifest:
