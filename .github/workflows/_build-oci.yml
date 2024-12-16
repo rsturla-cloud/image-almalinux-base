@@ -13,6 +13,11 @@ on:
 env:
   GHCR_REGISTRY: ghcr.io/${{ github.repository_owner }}
 
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
 jobs:
   generate_matrix:
     runs-on: ubuntu-latest
@@ -48,10 +53,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix: ${{fromJson(needs.generate_matrix.outputs.matrix)}}
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
     outputs:
       OS_VERSION: ${{ matrix.os_version }}
     steps:
@@ -72,6 +73,7 @@ jobs:
             IMAGE_REGISTRY=$GHCR_REGISTRY/$NAME
           fi
 
+          echo "NAME=$NAME" >> $GITHUB_OUTPUT
           echo "IMAGE_REGISTRY=$IMAGE_REGISTRY" >> $GITHUB_OUTPUT
 
       - name: Login to GHCR
@@ -114,7 +116,8 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
           DIGEST: ${{ steps.push-image.outputs.REMOTE_IMAGE_DIGEST }}
         run: |
-          echo "DIGEST=$DIGEST" > /tmp/outputs/$NAME-$OS_VERSION-$PLATFORM.txt
+          mkdir -p /tmp/outputs/digests
+          echo "$DIGEST" > /tmp/outputs/digests/$NAME-$OS_VERSION-$PLATFORM.txt
 
       - name: Upload Output Artifacts
         uses: actions/upload-artifact@v4
@@ -123,7 +126,7 @@ jobs:
           retention-days: 1
           if-no-files-found: error
           path: |
-            /tmp/outputs/*.txt
+            /tmp/outputs/digests/*.txt
 
 
   manifest:
@@ -148,6 +151,7 @@ jobs:
             IMAGE_REGISTRY=$GHCR_REGISTRY/$NAME
           fi
 
+          echo "NAME=$NAME" >> $GITHUB_OUTPUT
           echo "IMAGE_REGISTRY=$IMAGE_REGISTRY" >> $GITHUB_OUTPUT
           echo "OS_VERSION=$OS_VERSION" >> $GITHUB_OUTPUT
 
@@ -160,22 +164,44 @@ jobs:
       - name: Load Outputs
         id: load-outputs
         run: |
-          for file in /tmp/outputs/*.txt; do
-            echo "Loading $file"
-            while IFS='=' read -r key value; do
-              echo "$key=$value" >> $GITHUB_OUTPUT
-            done < $file
+          # Digests
+          # Store the digests in a dictionary of platforms to digests
+          declare -A DIGESTS
+          for digest_file in /tmp/artifacts/${{ needs.build_image.outputs.IMAGE_NAME }}-${{ steps.metadata.outputs.OS_VERSION }}-*.txt; do
+            PLATFORM=$(echo $digest_file)
+            DIGEST=$(cat $digest_file)
+            DIGESTS[$PLATFORM]=$DIGEST
           done
 
       - name: Show Outputs
         run: cat $GITHUB_OUTPUT
 
       - name: Create Manifest
-        run: podman manifest create almalinux-base
+        id: create-manifest
+        env:
+          IMAGE_REGISTRY: ${{ steps.metadata.outputs.IMAGE_REGISTRY }}
+        run: |
+          podman manifest create ${IMAGE_REGISTRY}
+          echo "MANIFEST=$IMAGE_REGISTRY" >> $GITHUB_OUTPUT
+
 
       - name: Populate Manifest
+        env:
+          MANIFEST: ${{ steps.create-manifest.outputs.MANIFEST }}
         run: |
-          for platform in $(echo "${{ steps.build_image.outputs.matrix }}" | jq -r '.include[].platform'); do
+          for platform in $(echo "${{ inputs.platforms }}" | jq -r '.[]'); do
             echo "Adding platform: $platform"
-            podman manifest add almalinux-base $GHCR_REGISTRY/almalinux-base@$platform
+            # Get the digest for the platform
+            DIGEST=${DIGESTS[$platform]}
+
+            podman manifest add $MANIFEST $IMAGE_REGISTRY@$DIGEST
           done
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Push Manifest
+        env:
+          MANIFEST: ${{ steps.create-manifest.outputs.MANIFEST }}
+        run: |
+          podman manifest push --all=false $MANIFEST
