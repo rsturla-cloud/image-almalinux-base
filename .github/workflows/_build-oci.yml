@@ -187,6 +187,9 @@ jobs:
             echo "Platform: $platform, Digest: ${DIGESTS[$platform]}"
           done
 
+          DIGESTS_JSON = $(echo "${DIGESTS[@]}" | jq -c '.')
+          echo "DIGESTS_JSON: $DIGESTS_JSON"
+
       - name: Show Outputs
         run: cat $GITHUB_OUTPUT
 
@@ -202,12 +205,14 @@ jobs:
         env:
           MANIFEST: ${{ steps.create-manifest.outputs.MANIFEST }}
           PLATFORMS_JSON: ${{ inputs.platforms }}
+          DIGESTS_JSON: ${{ steps.load-outputs.outputs.DIGESTS_JSON }}
         run: |
+          DIGESTS=$(echo "$DIGESTS_JSON" | jq -c '.')
           PLATFORMS=$(echo "$PLATFORMS_JSON" | jq -c '.')
           for platform in $(echo "$PLATFORMS" | jq -r '.[]'); do
             echo "Adding platform: $platform"
             # Get the digest for the platform
-            DIGEST=${DIGESTS[$platform]}
+            DIGEST=$(echo "$DIGESTS" | jq -r ".$platform")
 
             echo "Running podman manifest add $MANIFEST $IMAGE_REGISTRY@$DIGEST"
             podman manifest add $MANIFEST $IMAGE_REGISTRY@$DIGEST
