@@ -88,7 +88,6 @@ jobs:
           podman build -t $IMAGE_REGISTRY:local \
             --iidfile /tmp/iidfile \
             --build-arg OS_VERSION=${{ matrix.os_version }} \
-            --build-arg PLATFORM=${{ matrix.platform }} \
             .
 
           IMAGE_ID=$(cat /tmp/iidfile)
@@ -160,6 +159,7 @@ jobs:
         with:
           pattern: ${{ steps.metadata.outputs.NAME }}-${{ steps.metadata.outputs.OS_VERSION }}-*
           merge-multiple: true
+          path: /tmp/artifacts
 
       - name: Load Outputs
         id: load-outputs
