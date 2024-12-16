@@ -41,16 +41,11 @@ jobs:
                   echo "Created matrix: $MATRIX"
                   echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
 
-    build_image:
-        needs: generate_matrix
-        runs-on: ubuntu-latest
+    build_oci:
+        uses: ./.github/workflows/_build-oci.yml
         strategy:
+            fail-fast: false
             matrix: ${{fromJson(needs.generate_matrix.outputs.matrix)}}
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-
-            - name: Build image
-              run: |
-                  echo "Building image for os_version: ${{ matrix.os_version }} and platforms: ${{ matrix.platforms }}"
-                  # Build image here
+        with:
+            os_version: ${{ matrix.os_version }}
+            platforms: ${{ matrix.platforms }}

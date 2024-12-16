@@ -1,0 +1,50 @@
+name: Build OCI
+
+on:
+    workflow_call:
+        inputs:
+            os_version:
+                required: true
+                type: string
+            platforms:
+                required: true
+                type: string
+
+jobs:
+    generate_matrix:
+        runs-on: ubuntu-latest
+        outputs:
+            matrix: ${{ steps.set-matrix.outputs.matrix }}
+        steps:
+            - name: Set matrix
+              id: set-matrix
+              env:
+                  OS_VERSION: ${{ github.event.inputs.os_version }}
+                  PLATFORMS: ${{ github.event.inputs.platforms }}
+              run: |
+                  PLATFORMS=$(echo "$PLATFORMS" | jq -c '.')
+
+                  # Initialize an empty matrix
+                  MATRIX="{\"include\":[]}"
+
+                  # Loop through the platforms to build the matrix
+                  for platform in $(echo "$PLATFORMS" | jq -r '.[]'); do
+                      MATRIX=$(echo "$MATRIX" | jq --argjson platform "$platform" --arg os_version "$OS_VERSION" \
+                          '.include += [{"os_version": $os_version | tonumber, "platform": $platform}]')
+                  done
+
+                  # Minify the JSON
+                  MATRIX=$(echo "$MATRIX" | jq -c '.')
+                  echo "Created matrix: $MATRIX"
+                  echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+
+    build_image:
+        needs: generate_matrix
+        runs-on: ubuntu-latest
+        strategy:
+            matrix: ${{fromJson(needs.generate_matrix.outputs.matrix)}}
+        steps:
+            - name: Debug
+              run: |
+                  echo "Platform: ${{ matrix.platform }}"
+                  echo "OS Version: ${{ matrix.os_version }}"
