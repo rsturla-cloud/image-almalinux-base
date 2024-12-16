@@ -32,7 +32,7 @@ jobs:
                   for platform in $(echo "$PLATFORMS" | jq -r '.[]'); do
                       echo "Working on platform: $platform"
                       MATRIX=$(echo "$MATRIX" | jq --arg platform "$platform" --arg os_version "$OS_VERSION" \
-                          '.include += [{"platform": $platform, "os_version": $os_version}]')
+                          '.include += [{"os_version": $os_version, "platform": $platform}]')
                   done
 
                   # Minify the JSON
@@ -45,6 +45,15 @@ jobs:
         runs-on: ubuntu-latest
         strategy:
             matrix: ${{fromJson(needs.generate_matrix.outputs.matrix)}}
+        steps:
+            - name: Debug
+              run: |
+                  echo "Platform: ${{ matrix.platform }}"
+                  echo "OS Version: ${{ matrix.os_version }}"
+
+    manifest:
+        needs: build_image
+        runs-on: ubuntu-latest
         steps:
             - name: Debug
               run: |
