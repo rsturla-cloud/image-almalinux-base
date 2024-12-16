@@ -143,6 +143,7 @@ jobs:
         run: |
           NAME=$(yq eval '.name' $IMAGE_SPEC_PATH)
           TYPE=$(yq eval '.type' $IMAGE_SPEC_PATH)
+          TAGS=$(yq eval -o=json '.tags' $IMAGE_SPEC_PATH) | jq -c '.'
 
           if [ "$TYPE" == "base" ]; then
             IMAGE_REGISTRY=$GHCR_REGISTRY/base/$NAME
@@ -153,6 +154,7 @@ jobs:
           echo "NAME=$NAME" >> $GITHUB_OUTPUT
           echo "IMAGE_REGISTRY=$IMAGE_REGISTRY" >> $GITHUB_OUTPUT
           echo "OS_VERSION=$OS_VERSION" >> $GITHUB_OUTPUT
+          echo "TAGS=$TAGS" >> $GITHUB_OUTPUT
 
       - name: Fetch Build Outputs
         uses: actions/download-artifact@v4
@@ -214,8 +216,35 @@ jobs:
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
 
+      - name: Tag Manifest
+        id: tag-manifest
+        env:
+          IMAGE_SPEC_PATH: ./image.yml
+          IMAGE_REGISTRY: ${{ steps.metadata.outputs.IMAGE_REGISTRY }}
+          TAGS: ${{ steps.metadata.outputs.TAGS }}
+          OS_VERSION: ${{ steps.metadata.outputs.OS_VERSION }}
+        run: |
+          OS_VERSION=$OS_VERSION
+          COMMIT_SHA=$(echo "${{ github.sha }}")
+          COMMIT_SHA_SHORT=$(echo "${{ github.sha }}" | cut -c1-5)
+          BUILD_TIMESTAMP=$(date -u +"%Y%m%dT%H%M%SZ")
+
+          # Substitute the values in the tags using envsubst
+          MANIFEST_TAGS=()
+          for tag in $(echo "$TAGS" | jq -r '.[]'); do
+            TAG=$(echo "$tag" | envsubst)
+            MANIFEST_TAGS+=($IMAGE_REGISTRY:$TAG)
+          done
+
+          MANIFEST_TAGS_JSON=$MANIFEST_TAGS | jq -c '.'
+          echo "MANIFEST_TAGS_JSON=$MANIFEST_TAGS_JSON" >> $GITHUB_OUTPUT
+
       - name: Push Manifest
         env:
           MANIFEST: ${{ steps.create-manifest.outputs.MANIFEST }}
+          MANIFEST_TAGS_JSON: ${{ steps.tag-manifest.outputs.MANIFEST_TAGS_JSON }}
         run: |
-          podman manifest push --all=false $MANIFEST
+          # Push the manifest with all the tags
+          for tag in $(echo "$MANIFEST_TAGS_JSON" | jq -r '.[]'); do
+            podman manifest push --all=false $MANIFEST $tag
+          done
