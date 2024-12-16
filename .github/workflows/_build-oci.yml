@@ -187,8 +187,10 @@ jobs:
       - name: Populate Manifest
         env:
           MANIFEST: ${{ steps.create-manifest.outputs.MANIFEST }}
+          PLATFORMS_JSON: ${{ inputs.platforms }}
         run: |
-          for platform in $(echo "${{ inputs.platforms }}" | jq -r '.[]'); do
+          PLATFORMS=$(echo "$PLATFORMS_JSON" | jq -c '.')
+          for platform in $(echo "$PLATFORMS" | jq -r '.[]'); do
             echo "Adding platform: $platform"
             # Get the digest for the platform
             DIGEST=${DIGESTS[$platform]}
