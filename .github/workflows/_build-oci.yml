@@ -206,8 +206,9 @@ jobs:
             # Get the digest for the platform
             DIGEST=$(echo "$DIGESTS" | jq -r ".$platform")
 
-            echo "Running podman manifest add $MANIFEST $IMAGE_REGISTRY@$DIGEST"
-            podman manifest add $MANIFEST $IMAGE_REGISTRY@$DIGEST
+            podman manifest add $MANIFEST \
+              --arch $platform \
+              $IMAGE_REGISTRY@$DIGEST
           done
 
       - name: Login to GHCR
