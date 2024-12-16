@@ -243,6 +243,7 @@ jobs:
           COMMIT_SHA=$COMMIT_SHA
           COMMIT_SHA_SHORT=$(echo "$COMMIT_SHA" | cut -c1-7)
           BUILD_TIMESTAMP=$(date -u +"%Y%m%dT%H%M%SZ")
+          BUILD_TIMESTAMP_SHORT=$(date -u +"%Y%m%d")
 
           # Substitute the values in the tags using envsubst
           MANIFEST_TAGS=()
@@ -251,6 +252,7 @@ jobs:
                 COMMIT_SHA="$COMMIT_SHA" \
                 COMMIT_SHA_SHORT="$COMMIT_SHA_SHORT" \
                 BUILD_TIMESTAMP="$BUILD_TIMESTAMP" \
+                BUILD_TIMESTAMP_SHORT="$BUILD_TIMESTAMP_SHORT" \
                 envsubst <<< "$tag")
 
             echo "Replaced tag: $tag with $TAG"
