@@ -169,10 +169,18 @@ jobs:
           echo "Found the following digests files:"
           ls /tmp/artifacts
 
+          PLATFORMS=$(echo "$PLATFORMS_JSON" | jq -c '.')
+
           declare -A DIGESTS
           for digest_file in /tmp/artifacts/${{ steps.metadata.outputs.NAME }}-${{ steps.metadata.outputs.OS_VERSION }}-*.txt; do
             cat $digest_file
-            PLATFORM=$(echo $digest_file)
+            PLATFORM=""
+            for platform in $(echo "$PLATFORMS" | jq -r '.[]'); do
+              if [[ $digest_file == *$platform* ]]; then
+                PLATFORM=$platform
+                break
+              fi
+            done
             DIGEST=$(cat $digest_file)
             DIGESTS[$PLATFORM]=$DIGEST
             echo "Platform: $PLATFORM, Digest: $DIGEST"
