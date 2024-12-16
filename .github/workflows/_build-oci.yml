@@ -67,6 +67,8 @@ jobs:
 
           IMAGE_ID=$(cat /tmp/iidfile)
           echo "IMAGE_ID=$IMAGE_ID" >> $GITHUB_OUTPUT
+          podman image ls
+          podman image inspect $GHCR_REGISTRY/almalinux-base:local
 
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
