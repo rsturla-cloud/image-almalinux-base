@@ -19,8 +19,8 @@ jobs:
             - name: Set matrix
               id: set-matrix
               env:
-                  OS_VERSION: ${{ github.event.inputs.os_version }}
-                  PLATFORMS_JSON: ${{ github.event.inputs.platforms }}
+                  OS_VERSION: ${{ inputs.os_version }}
+                  PLATFORMS_JSON: ${{ inputs.platforms }}
               run: |
                   PLATFORMS=$(echo "$PLATFORMS_JSON" | jq -c '.')
                   echo "Platforms: $PLATFORMS"
