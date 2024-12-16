@@ -166,11 +166,21 @@ jobs:
         run: |
           # Digests
           # Store the digests in a dictionary of platforms to digests
+          echo "Found the following digests files:"
+          ls /tmp/artifacts
+
           declare -A DIGESTS
           for digest_file in /tmp/artifacts/${{ steps.metadata.outputs.NAME }}-${{ steps.metadata.outputs.OS_VERSION }}-*.txt; do
+            cat $digest_file
             PLATFORM=$(echo $digest_file)
             DIGEST=$(cat $digest_file)
             DIGESTS[$PLATFORM]=$DIGEST
+            echo "Platform: $PLATFORM, Digest: $DIGEST"
+          done
+
+          echo "Found digests:"
+          for platform in "${!DIGESTS[@]}"; do
+            echo "Platform: $platform, Digest: ${DIGESTS[$platform]}"
           done
 
       - name: Show Outputs
