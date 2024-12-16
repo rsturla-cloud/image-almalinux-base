@@ -55,14 +55,3 @@ jobs:
     with:
       os_version: ${{ matrix.os_version }}
       platforms: ${{ toJson(matrix.platforms) }}
-
-  build_ami:
-    runs-on: ubuntu-latest
-    needs:
-      - generate_matrix
-      - build_oci
-    strategy:
-      matrix: ${{fromJson(needs.generate_matrix.outputs.matrix)}}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
