@@ -18,6 +18,6 @@ permissions:
 
 jobs:
   build-image:
-    uses: rsturla-cloud/actions/.github/workflows/build-image.yml@build-workflows
+    uses: rsturla-cloud/actions/.github/workflows/build-image.yml@main
     with:
       spec_file_path: ./image.yml
