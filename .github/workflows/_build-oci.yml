@@ -61,7 +61,7 @@ jobs:
       OS_VERSION: ${{ matrix.os_version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Metadata
         id: metadata
@@ -125,7 +125,7 @@ jobs:
           echo "$DIGEST" > /tmp/outputs/digests/$NAME-$OS_VERSION-$PLATFORM.txt
 
       - name: Upload Output Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
         with:
           name: ${{ steps.build-image.outputs.IMAGE_NAME }}-${{ inputs.os_version }}-${{ matrix.platform }}
           retention-days: 1
@@ -139,7 +139,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Metadata
         id: metadata
@@ -174,7 +174,7 @@ jobs:
           echo "TAGS=$TAGS_JSON" >> $GITHUB_OUTPUT
 
       - name: Fetch Build Outputs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
         with:
           pattern: ${{ steps.metadata.outputs.NAME }}-${{ steps.metadata.outputs.OS_VERSION }}-*
           merge-multiple: true
