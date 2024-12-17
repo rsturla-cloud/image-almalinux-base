@@ -20,8 +20,5 @@ jobs:
   build-image:
     uses: rsturla-cloud/actions/.github/workflows/build-image.yml@build-workflows
     needs: generate_matrix
-    strategy:
-      fail-fast: false
-      matrix: ${{fromJson(needs.generate_matrix.outputs.matrix)}}
     with:
       spec_file_path: ./image.yml
