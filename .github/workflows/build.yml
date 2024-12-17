@@ -19,6 +19,5 @@ permissions:
 jobs:
   build-image:
     uses: rsturla-cloud/actions/.github/workflows/build-image.yml@build-workflows
-    needs: generate_matrix
     with:
       spec_file_path: ./image.yml
