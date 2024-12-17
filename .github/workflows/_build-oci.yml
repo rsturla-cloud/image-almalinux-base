@@ -1,0 +1,276 @@
+name: Build OCI
+
+on:
+  workflow_call:
+    inputs:
+      os_version:
+        required: true
+        type: string
+      platforms:
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}-${{ github.event.inputs.os_version }}-${{ github.event.inputs.platforms }}
+  cancel-in-progress: true
+
+env:
+  GHCR_REGISTRY: ghcr.io/${{ github.repository_owner }}
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  generate_matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Set matrix
+        id: set-matrix
+        env:
+          OS_VERSION: ${{ inputs.os_version }}
+          PLATFORMS_JSON: ${{ inputs.platforms }}
+        run: |
+          PLATFORMS=$(echo "$PLATFORMS_JSON" | jq -c '.')
+          echo "Platforms: $PLATFORMS"
+
+          # Initialize an empty matrix
+          MATRIX="{\"include\":[]}"
+
+          # Loop through the platforms to build the matrix
+          for platform in $(echo "$PLATFORMS" | jq -r '.[]'); do
+            echo "Working on platform: $platform"
+            MATRIX=$(echo "$MATRIX" | jq --arg platform "$platform" --arg os_version "$OS_VERSION" \
+              '.include += [{"os_version": $os_version, "platform": $platform}]')
+          done
+
+          # Minify the JSON
+          MATRIX=$(echo "$MATRIX" | jq -c '.')
+          echo "Created matrix: $MATRIX"
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+
+  build_image:
+    needs: generate_matrix
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix: ${{fromJson(needs.generate_matrix.outputs.matrix)}}
+    outputs:
+      OS_VERSION: ${{ matrix.os_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Metadata
+        id: metadata
+        env:
+          IMAGE_SPEC_PATH: ./image.yml
+        run: |
+          NAME=$(yq eval '.name' $IMAGE_SPEC_PATH)
+          TYPE=$(yq eval '.type' $IMAGE_SPEC_PATH)
+
+          if [ "$TYPE" == "base" ]; then
+            IMAGE_REGISTRY=$GHCR_REGISTRY/base/$NAME
+          else
+            IMAGE_REGISTRY=$GHCR_REGISTRY/$NAME
+          fi
+
+          echo "NAME=$NAME" >> $GITHUB_OUTPUT
+          echo "IMAGE_REGISTRY=$IMAGE_REGISTRY" >> $GITHUB_OUTPUT
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build Image
+        id: build-image
+        env:
+          IMAGE_REGISTRY: ${{ steps.metadata.outputs.IMAGE_REGISTRY }}
+          NAME: ${{ steps.metadata.outputs.NAME }}
+        run: |
+          podman build -t $IMAGE_REGISTRY:local \
+            --iidfile /tmp/iidfile \
+            --build-arg OS_VERSION=${{ matrix.os_version }} \
+            .
+
+          IMAGE_ID=$(cat /tmp/iidfile)
+          IMAGE_DIGEST=$(podman inspect --format '{{.Digest}}' $IMAGE_ID)
+
+          echo "IMAGE_REGISTRY=$IMAGE_REGISTRY" >> $GITHUB_OUTPUT
+          echo "IMAGE_NAME=$NAME" >> $GITHUB_OUTPUT
+          echo "IMAGE_DIGEST=$IMAGE_DIGEST" >> $GITHUB_OUTPUT
+
+      - name: Push Image
+        id: push-image
+        env:
+          IMAGE_DIGEST: ${{ steps.build-image.outputs.IMAGE_DIGEST }}
+          IMAGE_REGISTRY: ${{ steps.build-image.outputs.IMAGE_REGISTRY }}
+        run: |
+          # Push the image with only the digest
+          for i in {1..3}; do
+            podman push --digestfile=/tmp/digestfile $IMAGE_REGISTRY@${IMAGE_DIGEST} && break || sleep $((10 ** i))
+          done
+          REMOTE_IMAGE_DIGEST=$(cat /tmp/digestfile)
+          echo "REMOTE_IMAGE_DIGEST=$REMOTE_IMAGE_DIGEST" >> $GITHUB_OUTPUT
+
+      - name: Generate Outputs
+        env:
+          NAME: ${{ steps.metadata.outputs.NAME }}
+          OS_VERSION: ${{ matrix.os_version }}
+          PLATFORM: ${{ matrix.platform }}
+          DIGEST: ${{ steps.push-image.outputs.REMOTE_IMAGE_DIGEST }}
+        run: |
+          mkdir -p /tmp/outputs/digests
+          echo "$DIGEST" > /tmp/outputs/digests/$NAME-$OS_VERSION-$PLATFORM.txt
+
+      - name: Upload Output Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build-image.outputs.IMAGE_NAME }}-${{ inputs.os_version }}-${{ matrix.platform }}
+          retention-days: 1
+          if-no-files-found: error
+          path: |
+            /tmp/outputs/digests/*.txt
+
+
+  manifest:
+    needs: build_image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Metadata
+        id: metadata
+        env:
+          IMAGE_SPEC_PATH: ./image.yml
+          OS_VERSION: ${{ needs.build_image.outputs.OS_VERSION }}
+        run: |
+          NAME=$(yq eval '.name' $IMAGE_SPEC_PATH)
+          TYPE=$(yq eval '.type' $IMAGE_SPEC_PATH)
+          TAGS=$(yq eval -o=json '.tags' $IMAGE_SPEC_PATH)
+
+          if [ "$TYPE" == "base" ]; then
+            IMAGE_REGISTRY=$GHCR_REGISTRY/base/$NAME
+          else
+            IMAGE_REGISTRY=$GHCR_REGISTRY/$NAME
+          fi
+
+          # If this is a PR, prepend all tags with pr<PR_NUMBER>- to avoid conflicts
+          if [ -n "$GITHUB_HEAD_REF" ]; then
+            PR_NUMBER=$(echo "$GITHUB_REF" | awk -F'/' '{print $3}')
+            PR_TAGS=$(echo "[]" | jq -r '.')
+            for tag in $(echo "$TAGS" | jq -r '.[]'); do
+              PR_TAGS=$(echo "$PR_TAGS" | jq -r ". + [\"pr$PR_NUMBER-$tag\"]")
+            done
+            TAGS=$PR_TAGS
+          fi
+          TAGS_JSON=$(echo "$TAGS" | jq -c '.')
+
+          echo "NAME=$NAME" >> $GITHUB_OUTPUT
+          echo "IMAGE_REGISTRY=$IMAGE_REGISTRY" >> $GITHUB_OUTPUT
+          echo "OS_VERSION=$OS_VERSION" >> $GITHUB_OUTPUT
+          echo "TAGS=$TAGS_JSON" >> $GITHUB_OUTPUT
+
+      - name: Fetch Build Outputs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ steps.metadata.outputs.NAME }}-${{ steps.metadata.outputs.OS_VERSION }}-*
+          merge-multiple: true
+          path: /tmp/artifacts
+
+      - name: Load Outputs
+        id: load-outputs
+        run: |
+          # Initialize an empty JSON object using jq
+          DIGESTS_JSON=$(jq -n '{}')
+
+          # Loop through digest files and construct the JSON
+          for digest_file in /tmp/artifacts/*.txt; do
+            # Extract the platform from the file name
+            PLATFORM=$(basename $digest_file | rev | cut -d'-' -f1 | rev | cut -d'.' -f1)
+            DIGEST=$(cat $digest_file)
+
+            # Add the platform and digest to the JSON object
+            DIGESTS_JSON=$(echo "$DIGESTS_JSON" | jq --arg key "$PLATFORM" --arg value "$DIGEST" '. + {($key): $value}')
+          done
+
+          echo "DIGESTS_JSON: $DIGESTS_JSON"
+          DIGESTS_JSON=$(echo "$DIGESTS_JSON" | jq -c '.')
+          echo "DIGESTS_JSON=$DIGESTS_JSON" >> $GITHUB_OUTPUT
+
+      - name: Show Outputs
+        run: cat $GITHUB_OUTPUT
+
+      - name: Create Manifest
+        id: create-manifest
+        env:
+          IMAGE_REGISTRY: ${{ steps.metadata.outputs.IMAGE_REGISTRY }}
+        run: |
+          podman manifest create ${IMAGE_REGISTRY}
+          echo "MANIFEST=$IMAGE_REGISTRY" >> $GITHUB_OUTPUT
+
+      - name: Populate Manifest
+        env:
+          MANIFEST: ${{ steps.create-manifest.outputs.MANIFEST }}
+          PLATFORMS_JSON: ${{ inputs.platforms }}
+          DIGESTS_JSON: ${{ steps.load-outputs.outputs.DIGESTS_JSON }}
+          IMAGE_REGISTRY: ${{ steps.metadata.outputs.IMAGE_REGISTRY }}
+        run: |
+          DIGESTS=$(echo "$DIGESTS_JSON" | jq -c '.')
+          PLATFORMS=$(echo "$PLATFORMS_JSON" | jq -c '.')
+          for platform in $(echo "$PLATFORMS" | jq -r '.[]'); do
+            echo "Adding platform: $platform"
+            # Get the digest for the platform
+            DIGEST=$(echo "$DIGESTS" | jq -r ".$platform")
+
+            podman manifest add $MANIFEST \
+              --arch $platform \
+              $IMAGE_REGISTRY@$DIGEST
+          done
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Tag Manifest
+        id: tag-manifest
+        env:
+          IMAGE_REGISTRY: ${{ steps.metadata.outputs.IMAGE_REGISTRY }}
+          TAGS: ${{ steps.metadata.outputs.TAGS }}
+          OS_VERSION: ${{ steps.metadata.outputs.OS_VERSION }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          OS_VERSION=$OS_VERSION
+          COMMIT_SHA=$COMMIT_SHA
+          COMMIT_SHA_SHORT=$(echo "$COMMIT_SHA" | cut -c1-7)
+          BUILD_TIMESTAMP=$(date -u +"%Y%m%dT%H%M%SZ")
+          BUILD_TIMESTAMP_SHORT=$(date -u +"%Y%m%d")
+
+          # Substitute the values in the tags using envsubst
+          MANIFEST_TAGS=()
+          for tag in $(echo "$TAGS" | jq -r '.[]'); do
+              TAG=$(OS_VERSION="$OS_VERSION" \
+                COMMIT_SHA="$COMMIT_SHA" \
+                COMMIT_SHA_SHORT="$COMMIT_SHA_SHORT" \
+                BUILD_TIMESTAMP="$BUILD_TIMESTAMP" \
+                BUILD_TIMESTAMP_SHORT="$BUILD_TIMESTAMP_SHORT" \
+                envsubst <<< "$tag")
+
+            echo "Replaced tag: $tag with $TAG"
+            MANIFEST_TAGS+=($IMAGE_REGISTRY:$TAG)
+          done
+
+          MANIFEST_TAGS_JSON=$(printf '%s\n' "${MANIFEST_TAGS[@]}" | jq -R . | jq -cs .)
+          echo "MANIFEST_TAGS_JSON=$MANIFEST_TAGS_JSON" >> $GITHUB_OUTPUT
+          echo "MANIFEST_TAGS_JSON=$MANIFEST_TAGS_JSON"
+
+      - name: Push Manifest
+        env:
+          MANIFEST: ${{ steps.create-manifest.outputs.MANIFEST }}
+          MANIFEST_TAGS_JSON: ${{ steps.tag-manifest.outputs.MANIFEST_TAGS_JSON }}
+        run: |
+          # Push the manifest with all the tags
+          for tag in $(echo "$MANIFEST_TAGS_JSON" | jq -r '.[]'); do
+            podman manifest push --all=false $MANIFEST $tag
+          done

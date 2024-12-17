@@ -1,0 +1,93 @@
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 0 * * 1" # Run every Monday at 00:00 UTC
+  merge_group:
+
+jobs:
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@3b139cfc5fae8b618d3eae3675e383bb1769c019 # v4
+        with:
+          fail-on-severity: high
+
+  secrets-scan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog OSS
+        uses: trufflesecurity/trufflehog@6ceb49097f21249369f015c4d571173e9252f04d # v3.86.1
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified
+
+  codeql-setup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.languages }}
+    steps:
+      - name: Get languages from repo
+        id: set-matrix
+        uses: advanced-security/set-codeql-language-matrix@975244ea2e4c0668b8d289ac2b61fa7f0976f328 # v1
+        with:
+          access-token: ${{ secrets.GITHUB_TOKEN }}
+          endpoint: ${{ github.event.repository.languages_url }}
+
+  codeql-scan:
+    if: ${{ needs.create-matrix.outputs.matrix != '' }}
+    needs: codeql-setup
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ${{ fromJSON(needs.create-matrix.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      # CodeQL uses an older version of Go, so we should set it up ourselves
+      # so our project can be built with the required version
+      - name: Setup Go
+        if: ${{ matrix.language == 'go' }}
+        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
+        with:
+          category: "/language:${{matrix.language}}"

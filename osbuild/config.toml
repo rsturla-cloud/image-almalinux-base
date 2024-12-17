@@ -1,0 +1,6 @@
+[[customizations.user]]
+name = "admin"
+groups = ["wheel"]
+
+[[customizations.kernel]]
+append = "fips=1"

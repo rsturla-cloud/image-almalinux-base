@@ -1,0 +1,11 @@
+name: almalinux
+type: base
+platforms:
+  - amd64
+tags:
+  - ${OS_VERSION}
+  - ${OS_VERSION}-${COMMIT_SHA_SHORT}
+  - ${OS_VERSION}-${BUILD_TIMESTAMP_SHORT}
+  - ${OS_VERSION}-${BUILD_TIMESTAMP_SHORT}-${COMMIT_SHA_SHORT}
+os_versions:
+  - 9

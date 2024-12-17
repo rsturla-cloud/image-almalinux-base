@@ -1,1 +1,1 @@
-# image-almalinux-base
+# image-almalinux9-base
