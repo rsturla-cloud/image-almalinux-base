@@ -17,8 +17,8 @@ permissions:
   id-token: write
 
 jobs:
-  build:
-    uses: rsturla-cloud/actions/.github/workflows/build.yml@build-workflows
+  build-image:
+    uses: rsturla-cloud/actions/.github/workflows/build-image.yml@build-workflows
     needs: generate_matrix
     strategy:
       fail-fast: false
