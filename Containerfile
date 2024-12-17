@@ -1,6 +1,5 @@
-ARG OS_VERSION=9
-FROM quay.io/almalinuxorg/almalinux-bootc:${OS_VERSION}
-ARG OS_VERSION
+ARG SOURCE_TAG=9
+FROM quay.io/almalinuxorg/almalinux-bootc:${SOURCE_TAG}
 
 COPY files/ /
 COPY scripts /tmp/scripts

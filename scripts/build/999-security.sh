@@ -7,7 +7,7 @@ update-crypto-policies --no-reload --set FIPS
 dnf install -y authselect
 authselect select minimal --force
 
-dnf copr enable -y packit/OpenSCAP-openscap-maint-1.3 centos-stream-${OS_VERSION}-x86_64
+dnf copr enable -y packit/OpenSCAP-openscap-maint-1.3
 dnf install -y openscap-utils scap-security-guide openscap-engine-sce
 mv /usr/bin/oscap-bootc.new /usr/bin/oscap-bootc
 
