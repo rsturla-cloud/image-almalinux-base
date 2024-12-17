@@ -1,11 +1,11 @@
 name: almalinux
 type: base
+source_tags:
+  - 9
 platforms:
   - amd64
 tags:
-  - ${OS_VERSION}
-  - ${OS_VERSION}-${COMMIT_SHA_SHORT}
-  - ${OS_VERSION}-${BUILD_TIMESTAMP_SHORT}
-  - ${OS_VERSION}-${BUILD_TIMESTAMP_SHORT}-${COMMIT_SHA_SHORT}
-os_versions:
-  - 9
+  - ${SOURCE_TAG}
+  - ${SOURCE_TAG}-${COMMIT_SHA_SHORT}
+  - ${SOURCE_TAG}-${BUILD_TIMESTAMP_SHORT}
+  - ${SOURCE_TAG}-${BUILD_TIMESTAMP_SHORT}-${COMMIT_SHA_SHORT}

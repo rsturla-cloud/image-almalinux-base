@@ -17,44 +17,7 @@ permissions:
   id-token: write
 
 jobs:
-  generate_matrix:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-
-      - name: Set matrix
-        id: set-matrix
-        env:
-          IMAGE_SPEC_PATH: ./image.yml
-        run: |
-          # Extract OS versions and platforms from the image spec
-          OS_VERSIONS=$(yq eval -o=json '.os_versions' $IMAGE_SPEC_PATH)
-          PLATFORMS=$(yq eval -o=json '.platforms' $IMAGE_SPEC_PATH)
-
-          # Initialize an empty matrix
-          MATRIX="{\"include\":[]}"
-
-          # Loop through OS versions to build the matrix
-          for os_version in $(echo "$OS_VERSIONS" | jq -r '.[]'); do
-            MATRIX=$(echo "$MATRIX" | jq --argjson platforms "$PLATFORMS" --arg os_version "$os_version" \
-              '.include += [{"os_version": $os_version | tonumber, "platforms": $platforms}]')
-          done
-
-          # Minify the JSON
-          MATRIX=$(echo "$MATRIX" | jq -c '.')
-
-          echo "Created matrix: $MATRIX"
-          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
-
-  build_oci:
-    uses: ./.github/workflows/_build-oci.yml
-    needs: generate_matrix
-    strategy:
-      fail-fast: false
-      matrix: ${{fromJson(needs.generate_matrix.outputs.matrix)}}
+  build-image:
+    uses: rsturla-cloud/actions/.github/workflows/build-image.yml@main
     with:
-      os_version: ${{ matrix.os_version }}
-      platforms: ${{ toJson(matrix.platforms) }}
+      spec_file_path: ./image.yml
