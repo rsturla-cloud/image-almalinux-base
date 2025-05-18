@@ -1,0 +1,37 @@
+name: Build AMI
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: "Image to build"
+        required: true
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: read
+  id-token: write
+
+jobs:
+  build-ami:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to AWS
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ vars.BOOTC_IMAGE_BUILDER_ROLE }}
+          aws-region: eu-west-1
+
+      - name: Build AMI
+        id: build-ami
+        uses: bootc-warehouse/bootc-image-builder-action@v0.0.1
+        with:
+          config-file: ./osbuild/config.toml
+          image: ${{ github.event.inputs.image }}
+          types: ami
