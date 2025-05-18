@@ -33,5 +33,9 @@ jobs:
         uses: bootc-warehouse/bootc-image-builder-action@v0.0.1
         with:
           config-file: ./osbuild/config.toml
-          image: ${{ github.event.inputs.image }}
+          # image: ${{ github.event.inputs.image }}
+          image: ghcr.io/rsturla-cloud/base/almalinux:9
           types: ami
+          aws-ami-name: test-ami
+          aws-region: eu-west-1
+          aws-bucket: rsturla-bootc-test-bucket
