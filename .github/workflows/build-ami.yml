@@ -30,7 +30,7 @@ jobs:
 
       - name: Build AMI
         id: build-ami
-        uses: bootc-warehouse/bootc-image-builder-action@v0.0.1
+        uses: bootc-warehouse/bootc-image-builder-action@aws-ami-type-input
         with:
           config-file: ./osbuild/config.toml
           # image: ${{ github.event.inputs.image }}
