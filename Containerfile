@@ -1,4 +1,4 @@
-ARG SOURCE_TAG=9
+ARG SOURCE_TAG=10@sha256:ab0f290d0fe732b2351dd5e1f882173d8ce8124f66dd1d15307e14da419c1f19
 FROM quay.io/almalinuxorg/almalinux-bootc:${SOURCE_TAG}
 
 COPY files/ /
